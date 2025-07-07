@@ -1,1 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Vehicle Check Reminder</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+  <h1>Vehicle Reminder Active</h1>
+  <p>Daily check will notify at 7AM GMT.</p>
+
+  <script>
+    const registration = "VN06XFJ"; // <- Change this to any reg
+
+    async function fetchVehicleData(reg) {
+      try {
+        const taxResp = await fetch(`https://vehiclescore.co.uk/api/dvla/tax?registration=${reg.toUpperCase()}`);
+        const taxJson = await taxResp.json();
+        const taxData = taxJson.data || { taxStatus: "UNKNOWN" };
+
+        const motResp = await fetch(`https://vehiclescore.co.uk/_next/data/4-SC5A4xtzGxj5DPyMXrx/en/score.json?registration=${reg.toUpperCase()}`);
+        const motJson = await motResp.json();
+        const motData = motJson.pageProps?.vehicle?.mot || {};
+
+        return { taxData, motData };
+      } catch (err) {
+        console.error("API Error:", err);
+        return { taxData: { taxStatus: "UNKNOWN" }, motData: {} };
+      }
+    }
+
+    function notify(title, message) {
+      if (Notification.permission === "granted") {
+        new Notification(title, {
+          body: message,
+          icon: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/UK_road_tax_disc_2010.jpg/120px-UK_road_tax_disc_2010.jpg"
+        });
+      }
+    }
+
+    function checkTimeAndNotify() {
+      const now = new Date();
+      const gmtHour = now.getUTCHours();
+      const gmtMinute = now.getUTCMinutes();
+      const alreadyNotified = localStorage.getItem("lastNotified");
+
+      const todayStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+
+      if (gmtHour === 7 && gmtMinute === 0 && alreadyNotified !== todayStr) {
+        fetchVehicleData(registration).then(({ taxData }) => {
+          notify("🚗 Daily Vehicle Check", `Registration: ${registration}\nTax Status: ${taxData.taxStatus}`);
+          localStorage.setItem("lastNotified", todayStr);
+        });
+      }
+    }
+
+    // Ask permission once
+    if (Notification.permission !== "granted") {
+      Notification.requestPermission();
+    }
+
+    // Check every 60 seconds
+    setInterval(checkTimeAndNotify, 60 * 1000);
+    checkTimeAndNotify(); // Immediate check
+  </script>
+</body>
+</html>
 
